@@ -1,45 +1,42 @@
 import streamlit as st
-import os
-import tempfile
-from pydub import AudioSegment
 import speech_recognition as sr
+from pydub import AudioSegment
+import os
+import uuid
 
-st.set_page_config(page_title="اردو وائس میسج ٹو ٹیکسٹ", layout="centered")
-st.title("📢 WhatsApp وائس میسج اردو میں ٹیکسٹ میں تبدیل کریں")
+st.set_page_config(page_title="WhatsApp Voice to Urdu Text", page_icon="🎙️")
 
-uploaded_file = st.file_uploader("🔊 اپنی WhatsApp آڈیو فائل (.ogg یا .opus) اپلوڈ کریں", type=["ogg", "opus"])
+st.title("🎙️ WhatsApp وائس نوٹ کو اردو ٹیکسٹ میں تبدیل کریں")
 
-if uploaded_file:
-    recognizer = sr.Recognizer()
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg") as temp_audio:
-        temp_audio.write(uploaded_file.read())
-        temp_audio_path = temp_audio.name
+uploaded_file = st.file_uploader("WhatsApp کی .opus فائل اپلوڈ کریں", type=["opus", "ogg"])
 
-    # Convert OGG/OPUS to WAV
-    audio = AudioSegment.from_file(temp_audio_path)
-    wav_path = temp_audio_path.replace(".ogg", ".wav").replace(".opus", ".wav")
-    audio.export(wav_path, format="wav")
+if uploaded_file is not None:
+    st.audio(uploaded_file)
 
-    # Recognize Speech
-    with sr.AudioFile(wav_path) as source:
-        audio_data = recognizer.record(source)
+    # Save uploaded file to disk
+    temp_opus_path = f"temp_{uuid.uuid4()}.opus"
+    with open(temp_opus_path, "wb") as f:
+        f.write(uploaded_file.read())
+
+    # Convert to WAV using ffmpeg
+    temp_wav_path = temp_opus_path.replace(".opus", ".wav")
+    audio = AudioSegment.from_file(temp_opus_path)
+    audio.export(temp_wav_path, format="wav")
+
+    # Recognize speech
+    r = sr.Recognizer()
+    with sr.AudioFile(temp_wav_path) as source:
+        st.info("آواز کو پہچانا جا رہا ہے...")
+        audio_data = r.record(source)
         try:
-            text = recognizer.recognize_google(audio_data, language="ur-PK")
-            st.success("🎉 آڈیو کامیابی سے ٹیکسٹ میں بدل گئی!")
-            st.text_area("📝 اردو ٹیکسٹ:", value=text, height=200)
-            
-            # Downloadable text file
-            st.download_button(
-                label="📥 اردو ٹیکسٹ ڈاؤنلوڈ کریں",
-                data=text,
-                file_name="urdu_transcript.txt",
-                mime="text/plain"
-            )
+            text = r.recognize_google(audio_data, language="ur-PK")
+            st.success("📄 حاصل شدہ اردو ٹیکسٹ:")
+            st.write(text)
         except sr.UnknownValueError:
-            st.error("⚠️ معذرت، آواز کو سمجھنے میں ناکامی ہوئی۔")
-        except sr.RequestError as e:
-            st.error(f"❌ API سے جواب نہیں آیا: {e}")
+            st.error("معذرت! آواز سمجھ نہیں آئی۔")
+        except sr.RequestError:
+            st.error("Speech recognition سروس دستیاب نہیں۔")
 
-    # Clean up
-    os.remove(temp_audio_path)
-    os.remove(wav_path)
+    # Cleanup
+    os.remove(temp_opus_path)
+    os.remove(temp_wav_path)
