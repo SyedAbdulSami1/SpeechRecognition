@@ -8,6 +8,10 @@ st.set_page_config(page_title="WhatsApp Voice to Urdu Text", page_icon="🎙️"
 
 st.title("🎙️ WhatsApp وائس نوٹ کو اردو ٹیکسٹ میں تبدیل کریں")
 
+# 👇 Add this block before file uploader
+ffmpeg_path = os.path.join(os.getcwd(), "ffmpeg.exe")
+AudioSegment.converter = ffmpeg_path
+
 uploaded_file = st.file_uploader("WhatsApp کی .opus فائل اپلوڈ کریں", type=["opus", "ogg"])
 
 if uploaded_file is not None:
