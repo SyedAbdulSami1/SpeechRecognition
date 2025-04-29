@@ -1,42 +1,45 @@
+import streamlit as st
 import os
-import speech_recognition as sr
+import tempfile
 from pydub import AudioSegment
+import speech_recognition as sr
 
-# آڈیو فولڈر کا راستہ
-audio_folder = "voice_files"
-output_folder = "transcripts"
+st.set_page_config(page_title="اردو وائس میسج ٹو ٹیکسٹ", layout="centered")
+st.title("📢 WhatsApp وائس میسج اردو میں ٹیکسٹ میں تبدیل کریں")
 
-# آؤٹ پٹ فولڈر بنائیں اگر نہ ہو
-os.makedirs(output_folder, exist_ok=True)
+uploaded_file = st.file_uploader("🔊 اپنی WhatsApp آڈیو فائل (.ogg یا .opus) اپلوڈ کریں", type=["ogg", "opus"])
 
-# سپیچ ریکگنائزر انیشیالائز کریں
-recognizer = sr.Recognizer()
+if uploaded_file:
+    recognizer = sr.Recognizer()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg") as temp_audio:
+        temp_audio.write(uploaded_file.read())
+        temp_audio_path = temp_audio.name
 
-# تمام آڈیو فائلز پر لوپ
-for filename in os.listdir(audio_folder):
-    if filename.endswith(".ogg") or filename.endswith(".opus"):
-        filepath = os.path.join(audio_folder, filename)
-        wav_path = filepath.replace(".ogg", ".wav").replace(".opus", ".wav")
-        
-        # کنورٹ ogg/opus to wav
-        audio = AudioSegment.from_file(filepath)
-        audio.export(wav_path, format="wav")
+    # Convert OGG/OPUS to WAV
+    audio = AudioSegment.from_file(temp_audio_path)
+    wav_path = temp_audio_path.replace(".ogg", ".wav").replace(".opus", ".wav")
+    audio.export(wav_path, format="wav")
 
-        # سپیچ ٹو ٹیکسٹ
-        with sr.AudioFile(wav_path) as source:
-            audio_data = recognizer.record(source)
-            try:
-                text = recognizer.recognize_google(audio_data, language="ur-PK")
-                print(f"✅ {filename} → {text}")
-                
-                # متن کو .txt فائل میں محفوظ کریں
-                text_filename = os.path.splitext(filename)[0] + ".txt"
-                with open(os.path.join(output_folder, text_filename), "w", encoding="utf-8") as f:
-                    f.write(text)
-            except sr.UnknownValueError:
-                print(f"⚠️ Could not understand {filename}")
-            except sr.RequestError as e:
-                print(f"❌ API error for {filename}: {e}")
+    # Recognize Speech
+    with sr.AudioFile(wav_path) as source:
+        audio_data = recognizer.record(source)
+        try:
+            text = recognizer.recognize_google(audio_data, language="ur-PK")
+            st.success("🎉 آڈیو کامیابی سے ٹیکسٹ میں بدل گئی!")
+            st.text_area("📝 اردو ٹیکسٹ:", value=text, height=200)
+            
+            # Downloadable text file
+            st.download_button(
+                label="📥 اردو ٹیکسٹ ڈاؤنلوڈ کریں",
+                data=text,
+                file_name="urdu_transcript.txt",
+                mime="text/plain"
+            )
+        except sr.UnknownValueError:
+            st.error("⚠️ معذرت، آواز کو سمجھنے میں ناکامی ہوئی۔")
+        except sr.RequestError as e:
+            st.error(f"❌ API سے جواب نہیں آیا: {e}")
 
-        # عارضی .wav فائل ڈیلیٹ کریں
-        os.remove(wav_path)
+    # Clean up
+    os.remove(temp_audio_path)
+    os.remove(wav_path)
